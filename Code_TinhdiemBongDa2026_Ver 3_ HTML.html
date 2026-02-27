@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bóng đá Admin - Live Sync</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    
+    <!-- Firebase SDK -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getFirestore, doc, setDoc, getDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+
+        const firebaseConfig = JSON.parse(__firebase_config);
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
+        const auth = getAuth(app);
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'kickoff-2026';
+
+        // Hàm đồng bộ lên Cloud
+        async function syncToCloud() {
+            try {
+                const user = auth.currentUser;
+                if (!user) return;
+
+                // Lấy dữ liệu tổng hợp hiện tại từ Cloud trước
+                const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'live_results');
+                const docSnap = await getDoc(docRef);
+                let currentCloudData = docSnap.exists() ? docSnap.data() : { football: [], badminton: {}, chess: {} };
+
+                // Cập nhật phần bóng đá
+                currentCloudData.football = JSON.parse(localStorage.getItem('vthc_kickoff_data') || '[]');
+                
+                // Đẩy ngược lại Cloud
+                await setDoc(docRef, currentCloudData);
+                console.log("Football synced to cloud!");
+            } catch (e) {
+                console.error("Sync error:", e);
+            }
+        }
+
+        // Đăng nhập và bắt đầu
+        window.onload = async () => {
+            await signInAnonymously(auth);
+            // Ghi đè hàm save để tự động sync
+            const originalUpdateScore = window.updateScore;
+            window.updateScore = (...args) => {
+                if(originalUpdateScore) originalUpdateScore(...args);
+                syncToCloud();
+            };
+        };
+
+        window.syncToCloud = syncToCloud;
+    </script>
+
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;700;900&display=swap');
+        body { font-family: 'Inter', sans-serif; }
+        .theme-color { color: #15a48f; }
+        .theme-bg { background-color: #15a48f; }
+    </style>
+</head>
+<body class="bg-slate-50 text-slate-800">
+    <div id="app"></div>
+
+    <script>
+        // Copy logic gốc của bạn vào đây (Phần JS của Code_TinhdiemBongDa2026_Ver 3_ HTML.html)
+        // Lưu ý: Đảm bảo các hàm updateScore, save, v.v. gọi tới window.syncToCloud()
+        
+        const THEME_COLOR = '#15a48f';
+        let step = localStorage.getItem('vthc_kickoff_step') || 'setup';
+        let activeTab = localStorage.getItem('vthc_kickoff_activeTab') || 'mens';
+        let data = JSON.parse(localStorage.getItem('vthc_kickoff_data')) || [];
+
+        function save() {
+            localStorage.setItem('vthc_kickoff_step', step);
+            localStorage.setItem('vthc_kickoff_activeTab', activeTab);
+            localStorage.setItem('vthc_kickoff_data', JSON.stringify(data));
+            if(window.syncToCloud) window.syncToCloud();
+        }
+
+        // ... (Giữ nguyên toàn bộ logic Render và xử lý của bạn ở đây) ...
+        // [Tôi đã rút gọn phần nội dung HTML/JS cũ để tập trung vào phần Sync, 
+        // bạn hãy copy toàn bộ ruột file cũ của bạn vào phần này và thêm dòng 
+        // if(window.syncToCloud) window.syncToCloud() vào cuối hàm save()]
+        
+        function updateScore(index, team, val) {
+            data[index][team === 'A' ? 'scoreA' : 'scoreB'] += val;
+            if (data[index][team === 'A' ? 'scoreA' : 'scoreB'] < 0) data[index][team === 'A' ? 'scoreA' : 'scoreB'] = 0;
+            save();
+            render();
+        }
+
+        // Khởi tạo render ban đầu
+        document.getElementById('app').innerHTML = "Đang tải hệ thống Admin...";
+        setTimeout(() => {
+            // Giả lập logic render của bạn
+            if(typeof render === 'function') render();
+            else document.getElementById('app').innerHTML = "<div class='p-10 text-center font-bold'>Vui lòng tích hợp mã nguồn gốc vào file này.</div>";
+        }, 500);
+    </script>
+</body>
+</html>
