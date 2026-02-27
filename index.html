@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>KICKOFF 2026 - Central Admin Live</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    
+    <!-- Firebase SDK -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getFirestore, doc, onSnapshot, setDoc, getDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+
+        // Firebase Configuration - Sẽ được thay thế bởi môi trường runtime
+        const firebaseConfig = JSON.parse(__firebase_config);
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
+        const auth = getAuth(app);
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'vthc-kickoff-2026';
+
+        // Khởi tạo Auth
+        async function initAuth() {
+            try {
+                if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+                    await signInWithCustomToken(auth, __initial_auth_token);
+                } else {
+                    await signInAnonymously(auth);
+                }
+            } catch (e) {
+                console.error("Auth failed", e);
+            }
+        }
+
+        // Lắng nghe thay đổi kết nối
+        onAuthStateChanged(auth, (user) => {
+            const statusEl = document.getElementById('connection-status');
+            if (user) {
+                statusEl.innerHTML = '<span class="flex h-2 w-2 rounded-full bg-teal-500"></span> Trực tuyến (GitHub)';
+                statusEl.classList.add('text-teal-400');
+            } else {
+                statusEl.innerHTML = '<span class="flex h-2 w-2 rounded-full bg-red-500"></span> Ngoại tuyến';
+                statusEl.classList.add('text-red-400');
+            }
+        });
+
+        // Xử lý đồng bộ dữ liệu từ iFrame
+        window.addEventListener('message', async (event) => {
+            if (event.data && event.data.type === 'SYNC_DATA') {
+                const { module, data } = event.data;
+                const user = auth.currentUser;
+                if (!user) return;
+                
+                try {
+                    // Cấu trúc đường dẫn bắt buộc: /artifacts/{appId}/public/data/{collectionName}
+                    const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'live_results');
+                    const docSnap = await getDoc(docRef);
+                    let currentCloudData = docSnap.exists() ? docSnap.data() : { football: [], badminton: {}, chess: {} };
+
+                    currentCloudData[module] = data;
+                    await setDoc(docRef, currentCloudData);
+                    console.log(`[GitHub Sync] ${module} cập nhật thành công!`);
+                } catch (e) {
+                    console.error("Cloud Sync Error:", e);
+                }
+            }
+        });
+
+        initAuth();
+    </script>
+
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
+        body { font-family: 'Plus Jakarta Sans', sans-serif; overflow: hidden; }
+        .sidebar-btn { transition: all 0.3s; }
+        .sidebar-btn.active { background-color: #0d9488; color: white; border-color: #14b8a6; box-shadow: 0 4px 12px rgba(13, 148, 136, 0.3); }
+        .loading-screen { display: none; }
+        .loading-screen.active { display: flex; }
+    </style>
+</head>
+<body class="bg-slate-900 text-white">
+
+    <div class="flex h-screen w-full overflow-hidden">
+        <!-- Sidebar -->
+        <aside class="w-72 bg-slate-800 border-r border-slate-700 flex flex-col shadow-2xl z-20">
+            <div class="p-8 border-b border-slate-700">
+                <div class="flex items-center gap-3 mb-2">
+                    <div class="w-10 h-10 bg-teal-600 rounded-xl flex items-center justify-center text-white shadow-lg">
+                        <i data-lucide="github" class="w-6 h-6"></i>
+                    </div>
+                    <h1 class="font-extrabold text-lg tracking-tight">GITHUB ADMIN</h1>
+                </div>
+                <div id="connection-status" class="text-[10px] font-bold uppercase flex items-center gap-2 tracking-widest text-slate-400">
+                    <span class="flex h-2 w-2 rounded-full bg-slate-500 animate-pulse"></span> Đang kết nối...
+                </div>
+            </div>
+
+            <nav class="flex-1 p-4 space-y-2 mt-4">
+                <div class="px-4 mb-2 text-[10px] font-black text-slate-500 uppercase tracking-[0.2em]">Quản lý môn thi</div>
+                
+                <button onclick="openTab('football')" id="btn-football" class="sidebar-btn w-full p-4 rounded-2xl border border-transparent hover:bg-slate-700/50 flex items-center gap-4 group">
+                    <i data-lucide="trophy" class="w-5 h-5 group-hover:scale-110 transition-transform text-teal-500"></i>
+                    <span class="font-bold text-sm">Bóng đá Nam/Nữ</span>
+                </button>
+
+                <button onclick="openTab('badminton')" id="btn-badminton" class="sidebar-btn w-full p-4 rounded-2xl border border-transparent hover:bg-slate-700/50 flex items-center gap-4 group">
+                    <i data-lucide="activity" class="w-5 h-5 group-hover:scale-110 transition-transform text-teal-500"></i>
+                    <span class="font-bold text-sm">Cầu lông</span>
+                </button>
+
+                <button onclick="openTab('chess')" id="btn-chess" class="sidebar-btn w-full p-4 rounded-2xl border border-transparent hover:bg-slate-700/50 flex items-center gap-4 group">
+                    <i data-lucide="swords" class="w-5 h-5 group-hover:scale-110 transition-transform text-teal-500"></i>
+                    <span class="font-bold text-sm">Cờ vua</span>
+                </button>
+
+                <div class="pt-8 px-4 mb-2 text-[10px] font-black text-slate-500 uppercase tracking-[0.2em]">Kênh người xem</div>
+                <a href="viewer.html" target="_blank" class="w-full p-4 rounded-2xl bg-teal-900/30 text-teal-400 border border-teal-800/50 flex items-center gap-4 hover:bg-teal-900/50 transition-all shadow-inner">
+                    <i data-lucide="external-link" class="w-5 h-5"></i>
+                    <span class="font-black text-sm uppercase">Trang Live Stream</span>
+                </a>
+            </nav>
+
+            <div class="p-6 bg-slate-800/50 border-t border-slate-700">
+                <p class="text-[9px] font-bold text-slate-500 uppercase tracking-widest text-center">Deploy via GitHub Pages</p>
+            </div>
+        </aside>
+
+        <!-- Main Workspace -->
+        <main class="flex-1 relative bg-slate-100 flex flex-col">
+            <!-- Loading Overlay -->
+            <div id="loading" class="loading-screen absolute inset-0 z-10 bg-white/80 backdrop-blur-sm flex-col items-center justify-center text-teal-600">
+                <div class="w-12 h-12 border-4 border-teal-600 border-t-transparent rounded-full animate-spin mb-4"></div>
+                <span class="font-black text-xs uppercase tracking-widest">Đang tải iFrame...</span>
+            </div>
+
+            <!-- Header -->
+            <div class="bg-white h-16 border-b border-slate-200 flex items-center px-8 justify-between shrink-0 shadow-sm">
+                <div class="flex items-center gap-3">
+                    <i data-lucide="layout" class="w-5 h-5 text-slate-400"></i>
+                    <span id="current-title" class="text-slate-800 font-extrabold text-sm uppercase tracking-tight">Vui lòng chọn môn</span>
+                </div>
+                <div class="flex items-center gap-4">
+                    <button onclick="refreshIframe()" class="flex items-center gap-2 px-3 py-1.5 text-xs font-bold text-slate-500 hover:text-teal-600 hover:bg-teal-50 rounded-lg transition-colors border border-slate-200">
+                        <i data-lucide="refresh-cw" class="w-3.5 h-3.5"></i> Làm mới trang
+                    </button>
+                </div>
+            </div>
+
+            <!-- Content Area -->
+            <div class="flex-1 overflow-hidden relative">
+                <iframe id="admin-frame" class="w-full h-full border-none bg-slate-100" src="about:blank"></iframe>
+            </div>
+        </main>
+    </div>
+
+    <script>
+        lucide.createIcons();
+
+        function openTab(type) {
+            const frames = {
+                football: { url: 'Code_TinhdiemBongDa2026_Ver 3_ HTML.html', title: 'Quản lý Bóng đá' },
+                badminton: { url: 'CachtinhdiemCauLong_KO2026_Ver4_HTML.html', title: 'Quản lý Cầu lông' },
+                chess: { url: 'GiaiCo_KO2026_Ver2_HTML.html', title: 'Quản lý Cờ vua' }
+            };
+
+            const config = frames[type];
+            if (!config) return;
+
+            document.querySelectorAll('.sidebar-btn').forEach(b => b.classList.remove('active'));
+            document.getElementById('btn-' + type).classList.add('active');
+            document.getElementById('current-title').innerText = config.title;
+            
+            const loading = document.getElementById('loading');
+            const frame = document.getElementById('admin-frame');
+            
+            loading.classList.add('active');
+            
+            // Đảm bảo đường dẫn tương đối để chạy tốt trên GitHub Pages
+            frame.src = config.url;
+
+            frame.onload = () => {
+                loading.classList.remove('active');
+            };
+        }
+
+        function refreshIframe() {
+            const frame = document.getElementById('admin-frame');
+            if (frame.src !== 'about:blank') {
+                const currentSrc = frame.src;
+                frame.src = 'about:blank';
+                setTimeout(() => frame.src = currentSrc, 50);
+            }
+        }
+
+        window.onload = () => {
+            // Không tự động mở để tránh lỗi trên một số browser khi deploy GitHub
+            lucide.createIcons();
+        };
+    </script>
+</body>
+</html>
