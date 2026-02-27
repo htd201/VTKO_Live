@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <title>Cầu lông Admin - Live Sync</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Firebase SDK -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getFirestore, doc, setDoc, getDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+
+        const firebaseConfig = JSON.parse(__firebase_config);
+        const app = initializeApp(firebaseConfig);
+        const db_fs = getFirestore(app);
+        const auth = getAuth(app);
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'kickoff-2026';
+
+        async function syncBadminton() {
+            try {
+                if (!auth.currentUser) return;
+                const docRef = doc(db_fs, 'artifacts', appId, 'public', 'data', 'live_results');
+                const docSnap = await getDoc(docRef);
+                let currentCloudData = docSnap.exists() ? docSnap.data() : { football: [], badminton: {}, chess: {} };
+
+                currentCloudData.badminton = JSON.parse(localStorage.getItem('badmintonDB') || '{}');
+                await setDoc(docRef, currentCloudData);
+            } catch (e) { console.error(e); }
+        }
+
+        window.onload = async () => {
+            await signInAnonymously(auth);
+            window.syncBadminton = syncBadminton;
+        };
+    </script>
+
+    <!-- [Copy CSS gốc của bạn vào đây] -->
+</head>
+<body>
+    <!-- [Copy HTML gốc của bạn vào đây] -->
+
+    <script>
+        // TRONG HÀM saveDB() CỦA BẠN, HÃY THÊM DÒNG:
+        // if(window.syncBadminton) window.syncBadminton();
+    </script>
+</body>
+</html>
